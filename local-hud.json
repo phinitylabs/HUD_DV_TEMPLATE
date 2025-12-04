@@ -1,0 +1,37 @@
+[
+  {
+    "id": "axi4_slave_sva",
+    "prompt": "",
+    "setup_tool": {
+      "name": "setup_problem",
+      "arguments": {
+        "problem_id": "axi4_slave_sva"
+      }
+    },
+    "evaluate_tool": {
+      "name": "grade_problem",
+      "arguments": {
+        "problem_id": "axi4_slave_sva",
+        "transcript": "dummy transcript"
+      }
+    },
+    "agent_config": {
+      "allowed_tools": [
+        "bash",
+        "str_replace_based_edit_tool"
+      ]
+    },
+    "mcp_config": {
+      "local": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "-i",
+          "verilog_axi4_slave_sva"
+        ]
+      }
+    }
+  }
+]
+

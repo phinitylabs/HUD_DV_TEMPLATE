@@ -253,13 +253,13 @@ class GradingRunner:
         if not golden_patch_empty:
             patch = patch_content.encode("utf-8")
             try:
-        subprocess.run(
+                subprocess.run(
                     ["sudo", "-u", "ubuntu", "git", "apply", "-"], 
                     input=patch, 
                     check=True, 
                     cwd=self.grade_working_dir
-        )
-        logger.info("Applied golden patch successfully")
+                )
+                logger.info("Applied golden patch successfully")
             except subprocess.CalledProcessError:
                 # Try with --allow-empty if regular apply fails
                 subprocess.run(
@@ -283,50 +283,50 @@ class GradingRunner:
 
         # Step 8: Compile with golden patch (skip if patch was empty)
         if not golden_patch_empty:
-        try:
+            try:
                 if self._get_build_command() != ["true"]:
-            logger.info(f"Compiling project with golden patch in {self.grade_working_dir}")
-            subprocess.run(
-                ["sudo", "-u", "ubuntu", "bash", "-lc", " ".join(self._get_build_command())],
-                cwd=self.grade_working_dir,
-                timeout=1500,
-                check=True,
-                capture_output=True,
-                text=True,
-                env=dict(os.environ, HOME="/home/ubuntu"),
-            )
-            logger.info("Compilation with golden patch successful")
-        except subprocess.CalledProcessError as e:
-            # Format compile error as JUnit XML
-            xml_content = self._format_junit_xml("GoldenPatchCompiles", "Golden patch compilation failed", e.stdout, e.stderr)
-            logger.info(f"Golden patch compilation failed, returning XML: {xml_content}")
-            return False, {"junit": xml_content}
+                    logger.info(f"Compiling project with golden patch in {self.grade_working_dir}")
+                    subprocess.run(
+                        ["sudo", "-u", "ubuntu", "bash", "-lc", " ".join(self._get_build_command())],
+                        cwd=self.grade_working_dir,
+                        timeout=1500,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        env=dict(os.environ, HOME="/home/ubuntu"),
+                    )
+                    logger.info("Compilation with golden patch successful")
+            except subprocess.CalledProcessError as e:
+                # Format compile error as JUnit XML
+                xml_content = self._format_junit_xml("GoldenPatchCompiles", "Golden patch compilation failed", e.stdout, e.stderr)
+                logger.info(f"Golden patch compilation failed, returning XML: {xml_content}")
+                return False, {"junit": xml_content}
         else:
             logger.info("Skipping golden patch compilation (patch was empty)")
 
         # Step 9: Ensure that the tests pass with golden patch (skip if patch was empty)
         if not golden_patch_empty:
-        logger.info("Running tests with golden patch (expecting success)")
-        result = subprocess.run(
-            ["sudo", "-u", "ubuntu", "bash", "-lc", " ".join(self._get_test_command())],
-            cwd=self.grade_working_dir,
-            capture_output=True,
-            text=True,
-            env=dict(os.environ, HOME="/home/ubuntu"),
-        )
-
-        if result.returncode != 0:
-            # Tests failed when they should have passed
-            xml_content = self._format_junit_xml(
-                "GoldenPatchPassesTests", 
-                f"Golden patch did not fix tests (returncode={result.returncode})", 
-                result.stdout, 
-                result.stderr
+            logger.info("Running tests with golden patch (expecting success)")
+            result = subprocess.run(
+                ["sudo", "-u", "ubuntu", "bash", "-lc", " ".join(self._get_test_command())],
+                cwd=self.grade_working_dir,
+                capture_output=True,
+                text=True,
+                env=dict(os.environ, HOME="/home/ubuntu"),
             )
-            logger.info(f"Tests failed with golden patch (expected success), returning XML: {xml_content}")
-            return False, {"junit": xml_content}
 
-        logger.info("Tests passed as expected with golden patch")
+            if result.returncode != 0:
+                # Tests failed when they should have passed
+                xml_content = self._format_junit_xml(
+                    "GoldenPatchPassesTests", 
+                    f"Golden patch did not fix tests (returncode={result.returncode})", 
+                    result.stdout, 
+                    result.stderr
+                )
+                logger.info(f"Tests failed with golden patch (expected success), returning XML: {xml_content}")
+                return False, {"junit": xml_content}
+
+            logger.info("Tests passed as expected with golden patch")
         else:
             logger.info("Skipping golden patch test validation (patch was empty - baseline and golden are identical)")
 

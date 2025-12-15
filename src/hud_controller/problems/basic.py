@@ -57,7 +57,9 @@ PROBLEM_REGISTRY.append(
 **Requirements**:
 
 1. **Create Testbench File**: `verif/axi4_top_tb.sv`
-   - Instantiate the DUT from `sources/axi4_top.sv`
+   - Instantiate the DUT from `sources/axi4_top.sv` (NOT axi4_slave directly!)
+   - The axi4_top module internally connects axi4_master, axi4_slave, and axi4_interrupt
+   - Your testbench monitors the internal AXI signals between master and slave
    - Provide clock and reset signals
    - Include `$finish;` statement
 
@@ -89,10 +91,24 @@ PROBLEM_REGISTRY.append(
    - Different address ranges
 
 4. **Testbench Quality**:
-   - Must compile successfully with Verilator (--timing flag)
-   - Must simulate successfully
-   - Assertions must execute and report PASS/FAIL during simulation
+   - Must compile AND simulate successfully with Verilator
    - Use `$display("ASSERTION PASSED: ...")` and `$display("ASSERTION FAILED: ...")` for assertion reporting
+
+**Verification Command** (MUST pass before submission):
+```bash
+# Compile for simulation (NOT just lint-only!)
+verilator --binary --timing -Wno-fatal \\
+    sources/axi4_top.sv sources/axi4_master.sv sources/axi4_slave.sv sources/axi4_interrupt.sv \\
+    verif/axi4_top_tb.sv --top-module axi4_top_tb -o sim_tb
+
+# Run simulation
+./sim_tb
+```
+
+**IMPORTANT**: 
+- `verilator --lint-only` is NOT sufficient! You MUST test with `--binary` and run the simulation.
+- The testbench MUST instantiate `axi4_top` (not `axi4_slave` directly).
+- All DUT source files must be included in compilation.
 
 **Files to Create**:
 - `verif/axi4_top_tb.sv` (new file - agent creates this)

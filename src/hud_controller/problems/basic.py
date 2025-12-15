@@ -56,41 +56,48 @@ PROBLEM_REGISTRY.append(
 
 **Requirements**:
 
-1. **Create Testbench File**: `verif/axi4_slave_tb.sv`
-   - Instantiate the DUT: `sources/`
+1. **Create Testbench File**: `verif/axi4_top_tb.sv`
+   - Instantiate the DUT from `sources/axi4_top.sv`
    - Provide clock and reset signals
    - Include `$finish;` statement
 
-2. **Add Three Immediate Assertions** to verify:
+2. **Add Protocol Assertions** to verify:
    
-   a. **Address Calculation Validation**:
-      - Assert that calculated address matches expected address based on AWADDR, AWLEN, AWSIZE, and AWBURST
-      - Trigger on write address handshake (AWVALID && AWREADY)
+   a. **VALID Signal Stability**:
+      - AWVALID must remain stable until AWREADY
+      - WVALID must remain stable until WREADY
+      - ARVALID must remain stable until ARREADY
+      - BVALID must remain stable until BREADY
+      - RVALID must remain stable until RREADY
    
-   b. **Write Count Validation**:
-      - Assert that the number of write data transfers matches AWLEN+1
-      - Trigger on write response handshake (BVALID && BREADY)
+   b. **LAST Signal Correctness**:
+      - WLAST must be asserted on the final write data beat
+      - RLAST must be asserted on the final read data beat
    
    c. **Response Code Validation**:
-      - Assert that BRESP is OKAY (2'b00) for successful writes
-      - Assert that BRESP is SLVERR (2'b10) for out-of-range addresses
-      - Trigger on write response handshake (BVALID && BREADY)
+      - BRESP must be valid (00=OKAY, 01=EXOKAY, 10=SLVERR, 11=DECERR)
+      - RRESP must be valid (00=OKAY, 01=EXOKAY, 10=SLVERR, 11=DECERR)
+   
+   d. **Timing Relationships**:
+      - Write response (BVALID) must follow write data completion (WLAST)
+      - Read data (RVALID) must follow read address acceptance (ARREADY)
 
 3. **Provide Test Stimulus**:
    - Single-beat write transactions
    - Multi-beat burst writes (INCR, FIXED, WRAP)
-   - Different address ranges (in-range and out-of-range)
-   - Various AWLEN values
+   - Read transactions with various burst lengths
+   - Different address ranges
 
 4. **Testbench Quality**:
-   - Must compile successfully with Icarus Verilog
+   - Must compile successfully with Verilator (--timing flag)
    - Must simulate successfully
-   - Assertions must execute during simulation
+   - Assertions must execute and report PASS/FAIL during simulation
+   - Use `$display("ASSERTION PASSED: ...")` and `$display("ASSERTION FAILED: ...")` for assertion reporting
 
 **Files to Create**:
-- `verif/axi4_slave_tb.sv` (new file - agent creates this)
+- `verif/axi4_top_tb.sv` (new file - agent creates this)
 
-
+**Simulator**: Verilator with --timing flag (SystemVerilog timing delays supported)
 
 See `docs/Specification.md` for AXI4 protocol details.
 """,

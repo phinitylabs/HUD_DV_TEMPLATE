@@ -95,7 +95,7 @@ RUN git config --global user.name "mr agent"
 # =================================================================
 
 
-ENV random15=random15
+ENV random16=random16
 RUN git clone https://github.com/praveensaravanan30/test4 /home/ubuntu/example-verilog-codebase
 
 WORKDIR /home/ubuntu/example-verilog-codebase

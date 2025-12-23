@@ -147,26 +147,34 @@ The testbench compiles and runs successfully, but it lacks protocol assertions.
 
 **Your Task**:
 Add 5-10 SVA assertions in the marked section of `verif/axi4_slave_tb.sv` to verify:
+You are required to implement 5–10 SystemVerilog Assertions (SVA) in the marked section of `verif/axi4_slave_tb.sv` to explicitly verify the following AXI4 protocol properties:
 
-1. **Response Validity** (~2 assertions):
-   - BRESP must be a valid AXI response code (OKAY/EXOKAY/SLVERR/DECERR) when BVALID
-   - RRESP must be a valid AXI response code when RVALID
+1. **Response Validity**:
+   - When BVALID is asserted, the BRESP value must be a legal AXI4 response code: only the 2-bit codes 2'b00 (OKAY), 2'b01 (EXOKAY), 2'b10 (SLVERR), or 2'b11 (DECERR) are allowed. Any other value is an error.
+   - Similarly, RRESP must only take these legal response codes when RVALID is high.
 
-2. **ID Matching** (~2 assertions):
-   - BID must match the AWID from the corresponding write transaction
-   - RID must match the ARID from the corresponding read transaction
+2. **ID Matching**:
+   - Whenever a write response is given (BVALID), the BID returned by the slave must exactly match the AWID that was provided on the corresponding write address channel for that transaction.
+   - On each read response (RVALID), the RID value must match the ARID associated with the corresponding read transaction.
 
-3. **Transaction Ordering** (~2-3 assertions):
-   - BVALID should only be asserted after a write address has been received
-   - RVALID should only be asserted after a read address has been accepted
-   - BVALID should only be asserted after WLAST has been received
+3. **Transaction Ordering**:
+   - The AXI4 slave must never assert BVALID (write response valid) before it has received a write address (AWVALID/AWREADY handshake).
+   - The slave must not assert RVALID (read response valid) before a read address has been accepted (ARVALID/ARREADY handshake).
+   - Additionally, BVALID should not be asserted prior to the last data beat (WLAST) of a write transaction being received.
 
-4. **DECERR Handling** (~1 assertion):
-   - Out-of-range addresses (>= 0x00010000) should return DECERR response
+4. **DECERR Handling for Address Out-of-Range**:
+   - If the slave is accessed with an address of 0x00010000 or greater, the returned response (BRESP or RRESP) must be DECERR (2'b11).
 
-5. **LAST Signal Checks** (~2 assertions):
-   - Single-beat reads (ARLEN=0) should have RLAST asserted
-   - Single-beat writes (AWLEN=0) should have WLAST from the testbench
+5. **LAST Signal Checks**:
+   - For single-beat read transactions (where ARLEN is 0), the slave must assert RLAST with the read response.
+   - For single-beat writes (AWLEN = 0), the testbench must provide WLAST with the only data beat.
+
+For each property, write SVA assertions using the recommended pattern:
+- Use `property`/`assert property`.
+- Include `disable iff (!aresetn)` for asynchronous reset coverage.
+- On assertion failure, issue `$error("ASSERTION FAILED: ...")` with a clear explanation.
+
+It is your responsibility to craft these assertions using explicit logic to monitor relevant signals, track IDs across handshakes as needed, and ensure the protocol is followed under all test conditions. Avoid simply copying examples, but cover each of the listed requirements with robust assertions. Aim to write at least 8 total, grouped sensibly, and ensure they do NOT fire on the correct, specification-compliant design.
 
 **Requirements**:
 - Use proper SVA syntax with `property` and `assert property`
@@ -201,9 +209,6 @@ a_example_check: assert property (p_example_check)
 3. **Bug Detection** - Assertions must catch bugs in mutant designs
 4. **Structural Quality** - Minimum 5 `assert property` statements
 
-**Verification Command**:
-```bash
-make run
 ```
 
 **Files to Modify**:

@@ -143,7 +143,7 @@ def filter_specs(args: argparse.Namespace) -> list[ProcessedSpec]:
         processed = ProcessedSpec(
             id=spec.id,
             description=spec.description,
-            image=image_base + spec.id,
+            image=(image_base + spec.id).lower(),  # Docker requires lowercase image names
             base=spec.base,
             test=spec.test,
             golden=spec.golden,

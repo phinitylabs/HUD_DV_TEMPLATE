@@ -28,7 +28,7 @@
           "run",
           "--rm",
           "-i",
-          "verilog_Problem1_axi4_tb_1"
+          "verilog_problem1_axi4_tb_1"
         ]
       }
     }
@@ -62,7 +62,7 @@
           "run",
           "--rm",
           "-i",
-          "verilog_Problem2_axi4_tb_1"
+          "verilog_problem2_axi4_tb_1"
         ]
       }
     }
@@ -96,7 +96,7 @@
           "run",
           "--rm",
           "-i",
-          "verilog_Problem3_axi4_sva_1"
+          "verilog_problem3_axi4_sva_1"
         ]
       }
     }

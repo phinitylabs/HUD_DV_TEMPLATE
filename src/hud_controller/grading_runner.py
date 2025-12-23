@@ -273,13 +273,19 @@ class GradingRunner:
         else:
             logger.info("Golden patch is empty (baseline and golden are identical) - skipping application")
 
-        # Step 7: Apply test patch again
+        # Step 7: Apply test patch again (using 3-way merge to handle overlapping changes)
         logger.info(f"Applying test patch again in {self.grade_working_dir}")
         with open(self.test_patch_path) as f:
             patch = f.read().encode("utf-8")
-        subprocess.run(
-            ["sudo", "-u", "ubuntu", "git", "apply", "-"], input=patch, check=True, cwd=self.grade_working_dir
-        )
+        try:
+            subprocess.run(
+                ["sudo", "-u", "ubuntu", "git", "apply", "-"], input=patch, check=True, cwd=self.grade_working_dir
+            )
+        except subprocess.CalledProcessError:
+            # Try with 3-way merge if direct apply fails (handles overlapping changes)
+            subprocess.run(
+                ["sudo", "-u", "ubuntu", "git", "apply", "-3", "-"], input=patch, check=True, cwd=self.grade_working_dir
+            )
         logger.info("Applied test patch again successfully")
 
         # Step 8: Compile with golden patch (skip if patch was empty)

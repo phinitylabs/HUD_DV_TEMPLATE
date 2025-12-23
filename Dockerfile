@@ -95,7 +95,7 @@ RUN git config --global user.name "mr agent"
 # =================================================================
 
 
-ENV random14=random14
+ENV random15=random15
 RUN git clone https://github.com/praveensaravanan30/test4 /home/ubuntu/example-verilog-codebase
 
 WORKDIR /home/ubuntu/example-verilog-codebase
@@ -120,7 +120,10 @@ USER ubuntu
 # Overwrite git history to avoid leaking info
 RUN rm -rf .git && git init && git add . && git commit -m "Initial commit"
 
-# build the project
+# Install pytest globally for the grading tests (needed since workspace is copied to /tmp)
+RUN pip install pytest
+
+# build the project (creates venv for local testing)
 RUN uv sync
 
 # Set environment variables

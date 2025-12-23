@@ -92,7 +92,8 @@ class GradingRunner:
         return ["true"] # no build needed for this project
 
     def _get_test_command(self) -> list[str]:
-        return ["uv", "run", "pytest", *self.test_files]
+        # Use pytest directly since it's installed globally in Docker
+        return ["pytest", *self.test_files]
 
 
     def run_grading(self) -> tuple[bool, dict]:

@@ -121,7 +121,7 @@ USER ubuntu
 RUN rm -rf .git && git init && git add . && git commit -m "Initial commit"
 
 # Install pytest globally for the grading tests (needed since workspace is copied to /tmp)
-RUN pip install pytest
+RUN pip install pytest --break-system-packages
 
 # build the project (creates venv for local testing)
 RUN uv sync

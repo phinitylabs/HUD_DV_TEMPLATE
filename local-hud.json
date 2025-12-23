@@ -32,6 +32,40 @@
         ]
       }
     }
+  },
+  {
+    "id": "problem3_axi4_sva",
+    "prompt": "",
+    "setup_tool": {
+      "name": "setup_problem",
+      "arguments": {
+        "problem_id": "problem3_axi4_sva"
+      }
+    },
+    "evaluate_tool": {
+      "name": "grade_problem",
+      "arguments": {
+        "problem_id": "problem3_axi4_sva",
+        "transcript": "dummy transcript"
+      }
+    },
+    "agent_config": {
+      "allowed_tools": [
+        "bash",
+        "str_replace_based_edit_tool"
+      ]
+    },
+    "mcp_config": {
+      "local": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "-i",
+          "verilog_problem3_axi4_sva"
+        ]
+      }
+    }
   }
 ]
 

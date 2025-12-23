@@ -124,3 +124,93 @@ See `docs/Specification.md` for AXI4 protocol details.
         test_files=["tests/test_axi4_slave_sva_hidden.py"],
     )
 )
+
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="problem3_axi4_sva",
+        description="""Add SystemVerilog Assertions (SVA) to verify AXI4 protocol compliance.
+
+**Context**: 
+You are provided with a complete AXI4 slave testbench (`verif/axi4_slave_tb.sv`) that includes:
+- DUT instantiation (axi4_slave_top - 5 module architecture)
+- Clock generation and reset sequence
+- Protocol-compliant write/read transaction tasks
+- Test stimulus exercising various AXI4 scenarios
+
+The testbench compiles and runs successfully, but it lacks protocol assertions.
+
+**Your Task**:
+Add 5-10 SVA assertions in the marked section of `verif/axi4_slave_tb.sv` to verify:
+
+1. **Response Validity** (~2 assertions):
+   - BRESP must be a valid AXI response code (OKAY/EXOKAY/SLVERR/DECERR) when BVALID
+   - RRESP must be a valid AXI response code when RVALID
+
+2. **ID Matching** (~2 assertions):
+   - BID must match the AWID from the corresponding write transaction
+   - RID must match the ARID from the corresponding read transaction
+
+3. **Transaction Ordering** (~2-3 assertions):
+   - BVALID should only be asserted after a write address has been received
+   - RVALID should only be asserted after a read address has been accepted
+   - BVALID should only be asserted after WLAST has been received
+
+4. **DECERR Handling** (~1 assertion):
+   - Out-of-range addresses (>= 0x00010000) should return DECERR response
+
+5. **LAST Signal Checks** (~2 assertions):
+   - Single-beat reads (ARLEN=0) should have RLAST asserted
+   - Single-beat writes (AWLEN=0) should have WLAST from the testbench
+
+**Requirements**:
+- Use proper SVA syntax with `property` and `assert property`
+- Include `disable iff (!aresetn)` for reset handling
+- Use `$error("ASSERTION FAILED: ...")` for failure messages
+- Assertions must NOT fire on the correct (bug-free) design
+- Minimum 5 assertions, recommended 8-10
+
+**Example Assertion Format**:
+```systemverilog
+// Track state for assertion
+logic some_flag;
+always_ff @(posedge aclk or negedge aresetn) begin
+    if (!aresetn)
+        some_flag <= 1'b0;
+    else if (condition)
+        some_flag <= 1'b1;
+end
+
+property p_example_check;
+    @(posedge aclk) disable iff (!aresetn)
+    trigger_signal |-> expected_condition;
+endproperty
+
+a_example_check: assert property (p_example_check)
+    else $error("ASSERTION FAILED: description");
+```
+
+**Grading Criteria**:
+1. **Compilation** - Testbench must compile without errors
+2. **No False Positives** - Assertions must pass on the correct DUT
+3. **Bug Detection** - Assertions must catch bugs in mutant designs
+4. **Structural Quality** - Minimum 5 `assert property` statements
+
+**Verification Command**:
+```bash
+make run
+```
+
+**Files to Modify**:
+- `verif/axi4_slave_tb.sv` - Add assertions in the marked "YOUR TASK" section
+
+**Reference**:
+- See `docs/Specification.md` for AXI4 protocol details
+- DUT sources in `sources/` directory
+""",
+        difficulty="medium",
+        base="problem3_axi4_sva_baseline",
+        test="problem3_axi4_sva_test",
+        golden="problem3_axi4_sva_golden",
+        test_files=["tests/test_problem3_axi4_sva_hidden.py"],
+    )
+)

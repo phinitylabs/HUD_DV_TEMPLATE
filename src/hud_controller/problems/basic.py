@@ -49,7 +49,7 @@ q - Output value
 
 PROBLEM_REGISTRY.append(
     ProblemSpec(
-        id="axi4_slave_sva",
+        id="Problem1_axi4_tb_1",
         description="""Create a SystemVerilog testbench for the AXI4 slave module with assertions.
 
 **Task**: Write a comprehensive testbench that verifies the AXI4 slave module behavior.
@@ -118,16 +118,64 @@ verilator --binary --timing -Wno-fatal \\
 See `docs/Specification.md` for AXI4 protocol details.
 """,
         difficulty="medium",
-        base="axi4_slave_sva_baseline",
-        test="axi4_slave_sva_test",
-        golden="axi4_slave_sva_golden",
-        test_files=["tests/test_axi4_slave_sva_hidden.py"],
+        base="Problem1_axi4_tb_1_baseline",
+        test="Problem1_axi4_tb_1_test",
+        golden="Problem1_axi4_tb_1_golden",
+        test_files=["tests/test_Problem1_axi4_tb_1_hidden.py"],
     )
 )
 
 PROBLEM_REGISTRY.append(
     ProblemSpec(
-        id="problem3_axi4_sva",
+        id="Problem2_axi4_tb_1",
+        description="""Create a comprehensive SystemVerilog testbench for an AXI4 slave module.
+
+**Task**: Write a complete testbench that verifies the AXI4 slave module functionality.
+
+**Requirements**:
+
+1. **Create Testbench Files**:
+   - verif/axi4_slave_tb.sv - SystemVerilog testbench
+   - verif/sim_main.cpp - Verilator C++ wrapper
+
+2. **Testbench Must Include**:
+   - Clock generation (100MHz recommended)
+   - Reset sequence
+   - DUT instantiation (axi4_slave_top)
+   - AXI4 write transaction tasks
+   - AXI4 read transaction tasks
+   - Data verification (read-back check)
+
+3. **Test Scenarios to Cover**:
+   - Single-beat write and read
+   - Multi-beat burst transactions (INCR, FIXED, WRAP)
+   - Different data widths with byte strobes
+   - Address boundary conditions
+   - Back-to-back transactions
+   - Reset behavior verification
+
+4. **Grading Criteria** (5-phase evaluation):
+   - Phase 1: Compilation with Verilator (--timing flag)
+   - Phase 2: No false positives on golden DUT
+   - Phase 3: Coverage >= 60% line coverage
+   - Phase 4: Mutation detection >= 5/10 mutants killed
+   - Phase 5: Quality checks (structural validation)
+
+**Simulator**: Verilator with --timing flag
+
+See docs/Specification.md for AXI4 protocol details.
+""",
+        difficulty="hard",
+        base="Problem2_axi4_tb_1_baseline",
+        test="Problem2_axi4_tb_1_test",
+        golden="Problem2_axi4_tb_1_golden",
+        test_files=["tests/test_Problem2_axi4_tb_1_hidden.py"],
+    )
+)
+
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem3_axi4_sva_1",
         description="""Add SystemVerilog Assertions (SVA) to verify AXI4 protocol compliance.
 
 **Context**: 
@@ -208,9 +256,9 @@ make run
 - DUT sources in `sources/` directory
 """,
         difficulty="medium",
-        base="problem3_axi4_sva_baseline",
-        test="problem3_axi4_sva_test",
-        golden="problem3_axi4_sva_golden",
-        test_files=["tests/test_problem3_axi4_sva_hidden.py"],
+        base="Problem3_axi4_sva_1_baseline",
+        test="Problem3_axi4_sva_1_test",
+        golden="Problem3_axi4_sva_1_golden",
+        test_files=["tests/test_Problem3_axi4_sva_1_hidden.py"],
     )
 )

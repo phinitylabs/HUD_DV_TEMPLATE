@@ -1,17 +1,17 @@
 [
   {
-    "id": "axi4_slave_sva",
+    "id": "Problem1_axi4_tb_1",
     "prompt": "",
     "setup_tool": {
       "name": "setup_problem",
       "arguments": {
-        "problem_id": "axi4_slave_sva"
+        "problem_id": "Problem1_axi4_tb_1"
       }
     },
     "evaluate_tool": {
       "name": "grade_problem",
       "arguments": {
-        "problem_id": "axi4_slave_sva",
+        "problem_id": "Problem1_axi4_tb_1",
         "transcript": "dummy transcript"
       }
     },
@@ -28,24 +28,24 @@
           "run",
           "--rm",
           "-i",
-          "verilog_axi4_slave_sva"
+          "verilog_Problem1_axi4_tb_1"
         ]
       }
     }
   },
   {
-    "id": "problem3_axi4_sva",
+    "id": "Problem2_axi4_tb_1",
     "prompt": "",
     "setup_tool": {
       "name": "setup_problem",
       "arguments": {
-        "problem_id": "problem3_axi4_sva"
+        "problem_id": "Problem2_axi4_tb_1"
       }
     },
     "evaluate_tool": {
       "name": "grade_problem",
       "arguments": {
-        "problem_id": "problem3_axi4_sva",
+        "problem_id": "Problem2_axi4_tb_1",
         "transcript": "dummy transcript"
       }
     },
@@ -62,10 +62,43 @@
           "run",
           "--rm",
           "-i",
-          "verilog_problem3_axi4_sva"
+          "verilog_Problem2_axi4_tb_1"
+        ]
+      }
+    }
+  },
+  {
+    "id": "Problem3_axi4_sva_1",
+    "prompt": "",
+    "setup_tool": {
+      "name": "setup_problem",
+      "arguments": {
+        "problem_id": "Problem3_axi4_sva_1"
+      }
+    },
+    "evaluate_tool": {
+      "name": "grade_problem",
+      "arguments": {
+        "problem_id": "Problem3_axi4_sva_1",
+        "transcript": "dummy transcript"
+      }
+    },
+    "agent_config": {
+      "allowed_tools": [
+        "bash",
+        "str_replace_based_edit_tool"
+      ]
+    },
+    "mcp_config": {
+      "local": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "-i",
+          "verilog_Problem3_axi4_sva_1"
         ]
       }
     }
   }
 ]
-

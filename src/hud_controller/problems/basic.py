@@ -1,6 +1,6 @@
 import logging
 
-from hud_controller.spec import ProblemSpec, PROBLEM_REGISTRY
+from hud_controller.spec import ProblemSpec, PROBLEM_REGISTRY, HintSpec
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +134,7 @@ See docs/Specification.md for AXI4 protocol details.
 PROBLEM_REGISTRY.append(
     ProblemSpec(
         id="Problem3_axi4_sva_1",
-        description="""Add SystemVerilog Assertions (SVA) to verify AXI4 protocol compliance.
+        description="""Add SystemVerilog Assertions (SVA) to verify AXI4 slave correctness.
 
 **Context**: 
 You are provided with a complete AXI4 slave testbench (`verif/axi4_slave_tb.sv`) that includes:
@@ -143,85 +143,329 @@ You are provided with a complete AXI4 slave testbench (`verif/axi4_slave_tb.sv`)
 - Protocol-compliant write/read transaction tasks
 - Test stimulus exercising various AXI4 scenarios
 
-The testbench compiles and runs successfully, but it lacks protocol assertions.
+The testbench compiles and runs successfully, but it lacks assertions to catch bugs.
 
 **Your Task**:
-Add 5-10 SVA assertions in the marked section of `verif/axi4_slave_tb.sv` to verify:
-You are required to implement 5–10 SystemVerilog Assertions (SVA) in the marked section of `verif/axi4_slave_tb.sv` to explicitly verify the following AXI4 protocol properties:
+Add 8-12 SVA assertions in the marked section of `verif/axi4_slave_tb.sv`. Your assertions will be tested against MUTANT designs containing real bugs. To pass, your assertions must DETECT these bugs.
 
-1. **Response Validity**:
-   - When BVALID is asserted, the BRESP value must be a legal AXI4 response code: only the 2-bit codes 2'b00 (OKAY), 2'b01 (EXOKAY), 2'b10 (SLVERR), or 2'b11 (DECERR) are allowed. Any other value is an error.
-   - Similarly, RRESP must only take these legal response codes when RVALID is high.
+**CRITICAL - Bug Detection Requirements** (highest priority for grading):
+Your assertions MUST catch data corruption bugs. Focus on:
 
-2. **ID Matching**:
-   - Whenever a write response is given (BVALID), the BID returned by the slave must exactly match the AWID that was provided on the corresponding write address channel for that transaction.
-   - On each read response (RVALID), the RID value must match the ARID associated with the corresponding read transaction.
+1. **DATA INTEGRITY (MOST IMPORTANT)**:
+   - Create a shadow memory to track what was written
+   - Verify RDATA matches what was previously written to that address
+   - Check WSTRB byte lane masking: when WSTRB[i]=0, byte lane i must NOT be modified
+   
+2. **RLAST Timing**:
+   - For burst reads, RLAST must assert exactly on the final beat (beat count == ARLEN)
+   - For single-beat reads (ARLEN=0), RLAST must be asserted
 
-3. **Transaction Ordering**:
-   - The AXI4 slave must never assert BVALID (write response valid) before it has received a write address (AWVALID/AWREADY handshake).
-   - The slave must not assert RVALID (read response valid) before a read address has been accepted (ARVALID/ARREADY handshake).
-   - Additionally, BVALID should not be asserted prior to the last data beat (WLAST) of a write transaction being received.
+3. **BRESP/RRESP Values**:
+   - Out-of-range addresses (>= 0x00010000) must return DECERR (2'b11)
 
-4. **DECERR Handling for Address Out-of-Range**:
-   - If the slave is accessed with an address of 0x00010000 or greater, the returned response (BRESP or RRESP) must be DECERR (2'b11).
+4. **Protocol Checks** (necessary but not sufficient alone):
+   - ID matching (BID==AWID, RID==ARID)
+   - Transaction ordering
 
-5. **LAST Signal Checks**:
-   - For single-beat read transactions (where ARLEN is 0), the slave must assert RLAST with the read response.
-   - For single-beat writes (AWLEN = 0), the testbench must provide WLAST with the only data beat.
+**Example Shadow Memory Assertion**:
+```systemverilog
+// Shadow memory for data integrity checking
+logic [31:0] shadow_mem[0:16383];  // 64KB / 4 bytes
 
-For each property, write SVA assertions using the recommended pattern:
-- Use `property`/`assert property`.
-- Include `disable iff (!aresetn)` for asynchronous reset coverage.
-- On assertion failure, issue `$error("ASSERTION FAILED: ...")` with a clear explanation.
+always_ff @(posedge aclk or negedge aresetn) begin
+    if (!aresetn) begin
+        // No reset needed for shadow
+    end else if (wvalid && wready) begin
+        // Update shadow based on WSTRB
+        if (wstrb[0]) shadow_mem[captured_addr[15:2]][7:0] <= wdata[7:0];
+        if (wstrb[1]) shadow_mem[captured_addr[15:2]][15:8] <= wdata[15:8];
+        if (wstrb[2]) shadow_mem[captured_addr[15:2]][23:16] <= wdata[23:16];
+        if (wstrb[3]) shadow_mem[captured_addr[15:2]][31:24] <= wdata[31:24];
+    end
+end
 
-It is your responsibility to craft these assertions using explicit logic to monitor relevant signals, track IDs across handshakes as needed, and ensure the protocol is followed under all test conditions. Avoid simply copying examples, but cover each of the listed requirements with robust assertions. Aim to write at least 8 total, grouped sensibly, and ensure they do NOT fire on the correct, specification-compliant design.
+property p_read_data_integrity;
+    @(posedge aclk) disable iff (!aresetn)
+    (rvalid && rready && rresp == 2'b00) |-> (rdata == shadow_mem[read_addr[15:2]]);
+endproperty
+a_read_data_integrity: assert property (p_read_data_integrity)
+    else $error("ASSERTION FAILED: Read data mismatch");
+```
+
+**Grading Weights**:
+- Compilation: 15%
+- No False Positives: 20%  
+- **Mutation Detection: 40%** (most important!)
+- Structural Quality: 25%
 
 **Requirements**:
 - Use proper SVA syntax with `property` and `assert property`
 - Include `disable iff (!aresetn)` for reset handling
-- Use `$error("ASSERTION FAILED: ...")` for failure messages
-- Assertions must NOT fire on the correct (bug-free) design
-- Minimum 5 assertions, recommended 8-10
-
-**Example Assertion Format**:
-```systemverilog
-// Track state for assertion
-logic some_flag;
-always_ff @(posedge aclk or negedge aresetn) begin
-    if (!aresetn)
-        some_flag <= 1'b0;
-    else if (condition)
-        some_flag <= 1'b1;
-end
-
-property p_example_check;
-    @(posedge aclk) disable iff (!aresetn)
-    trigger_signal |-> expected_condition;
-endproperty
-
-a_example_check: assert property (p_example_check)
-    else $error("ASSERTION FAILED: description");
-```
-
-**Grading Criteria**:
-1. **Compilation** - Testbench must compile without errors
-2. **No False Positives** - Assertions must pass on the correct DUT
-3. **Bug Detection** - Assertions must catch bugs in mutant designs
-4. **Structural Quality** - Minimum 5 `assert property` statements
-
-```
+- Assertions must NOT fire on the correct design
+- Minimum 8 assertions including data integrity checks
 
 **Files to Modify**:
 - `verif/axi4_slave_tb.sv` - Add assertions in the marked "YOUR TASK" section
-
-**Reference**:
-- See `docs/Specification.md` for AXI4 protocol details
-- DUT sources in `sources/` directory
 """,
         difficulty="medium",
         base="Problem3_axi4_sva_1_baseline",
         test="Problem3_axi4_sva_1_test",
         golden="Problem3_axi4_sva_1_golden",
         test_files=["tests/test_Problem3_axi4_sva_1_hidden.py"],
+        hints=[
+            HintSpec(
+                hint_type="legit",
+                text="""CRITICAL: To pass grading, your assertions MUST detect data corruption bugs in mutant designs.
+
+Add these HIGH-PRIORITY assertions that catch real bugs:
+1. **WSTRB byte lane masking**: When WSTRB bits are 0, those byte lanes must NOT be modified
+2. **Read-after-write data integrity**: Track (address, data) pairs and verify RDATA matches WDATA for same address
+3. **RLAST timing for bursts**: RLAST must assert exactly on beat number (ARLEN + 1), not earlier or later
+4. **Reset behavior**: After reset, outputs must be in known safe states before any transaction
+5. **Single-beat WLAST**: For AWLEN=0, WLAST must be asserted with the only data beat
+
+Protocol-level assertions (ID matching, response codes) are necessary but NOT sufficient - they won't catch data path bugs!""",
+                why_legitmate="Provides specific assertion categories that map to common mutation types without revealing exact mutant implementations"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""Example data integrity assertion pattern:
+
+```systemverilog
+// Track writes for read verification
+logic [31:0] shadow_mem[0:255];  // Shadow memory for comparison
+
+always_ff @(posedge aclk or negedge aresetn) begin
+    if (!aresetn) begin
+        // Reset shadow memory
+    end else if (wvalid && wready) begin
+        // Update shadow_mem based on address and WSTRB
+        if (wstrb[0]) shadow_mem[addr[9:2]][7:0] <= wdata[7:0];
+        if (wstrb[1]) shadow_mem[addr[9:2]][15:8] <= wdata[15:8];
+        // ... etc for all strobe bits
+    end
+end
+
+property p_read_data_matches_shadow;
+    @(posedge aclk) disable iff (!aresetn)
+    (rvalid && rready) |-> (rdata == shadow_mem[read_addr[9:2]]);
+endproperty
+```
+
+This pattern catches strobe bugs, data corruption, and address calculation errors.""",
+                why_legitmate="Shows assertion pattern structure without revealing specific mutant implementations"
+            ),
+        ],
+    )
+)
+
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem4_axi4_slave_sva",
+        description="""Add SystemVerilog Assertions (SVA) to verify AXI4 slave correctness.
+
+**Context**: 
+You are provided with an AXI4 slave testbench (`verif/axi4_slave_tb.sv`) that includes:
+- DUT instantiation (axi4_slave_top - 5 module architecture)
+- Clock generation and reset sequence
+- Protocol-compliant write/read transaction tasks
+- Test stimulus exercising various AXI4 scenarios
+
+The testbench compiles and runs successfully, but it lacks assertions to catch bugs.
+
+**Your Task**:
+Add 8-12 SVA assertions to `verif/axi4_slave_tb.sv` in the marked section. Your assertions will be tested against MUTANT designs containing real bugs. To pass, your assertions must DETECT these bugs.
+
+**Bug Detection Requirements**:
+
+1. **Response Code Validation**:
+   - BRESP must be valid (00=OKAY, 01=EXOKAY, 10=SLVERR, 11=DECERR)
+   - RRESP must be valid
+
+2. **ID Matching**:
+   - BID must match AWID for write responses
+   - RID must match ARID for read responses
+
+3. **LAST Signal Correctness**:
+   - BVALID should only assert after WLAST is seen
+   - RLAST must be set on the final beat of read burst
+
+4. **Address Range Validation**:
+   - Out-of-range addresses (>= 0x00010000) must return DECERR
+   - Valid addresses (0x0000-0xFFFF) must NOT return DECERR
+
+5. **Handshake Behavior**:
+   - BVALID/RVALID must deassert after handshake
+
+**Grading Weights**:
+- Compilation: 15%
+- No False Positives: 20%
+- Mutation Detection: 40%
+- Structural Quality: 25%
+
+**Pass Threshold**: 60%
+
+**Files to Modify**:
+- `verif/axi4_slave_tb.sv` - Add assertions in the marked "YOUR TASK" section
+""",
+        difficulty="medium",
+        base="Problem4_axi4_slave_sva_baseline",
+        test="Problem4_axi4_slave_sva_test",
+        golden="Problem4_axi4_slave_sva_golden",
+        test_files=["tests/test_Problem4_axi4_slave_sva_hidden.py"],
+    )
+)
+
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem5_axi4_top_tb",
+        description="""Create a comprehensive SystemVerilog testbench for a complete AXI4 system.
+
+**Task**: Write a testbench that verifies the complete AXI4 system functionality.
+
+**System Architecture**:
+The axi4_top module integrates:
+- axi4_master: Generates AXI4 transactions automatically
+- axi4_slave: Responds to transactions
+- axi4_interrupt: Interrupt controller
+- axi4_coverage: Coverage collector (tracks functional coverage internally)
+
+**Requirements**:
+
+1. **Create Testbench Files**:
+   - verif/axi4_top_tb.sv - SystemVerilog testbench
+   - verif/sim_main.cpp - Verilator C++ wrapper
+
+2. **Testbench Must Include**:
+   - Clock generation
+   - Reset sequence
+   - DUT instantiation (axi4_top)
+   - Simulation termination ($finish)
+
+3. **Verification Points**:
+   - Verify system runs without errors
+   - Let internal master complete its transaction sequence
+   - Ensure proper simulation duration
+
+4. **Grading Criteria** (5-phase evaluation):
+   - Phase 1: Compilation with Verilator (--timing flag)
+   - Phase 2: No false positives on golden DUT
+   - Phase 3: Line coverage
+   - Phase 4: Mutation detection
+   - Phase 5: Quality checks
+
+**Pass Threshold**: 50%
+
+**Simulator**: Verilator with --timing flag
+
+See docs/Specification.md for system architecture details.
+""",
+        difficulty="hard",
+        base="Problem5_axi4_top_tb_baseline",
+        test="Problem5_axi4_top_tb_test",
+        golden="Problem5_axi4_top_tb_golden",
+        test_files=["tests/test_Problem5_axi4_top_tb_hidden.py"],
+        hints=[
+            HintSpec(
+                hint_type="legit",
+                text="""CRITICAL ARCHITECTURE INFO: The axi4_top module contains an INTERNAL axi4_master that automatically generates diverse AXI4 transactions when clock and reset are provided.
+
+Your testbench does NOT need to:
+- Drive AXI signals manually
+- Create complex transaction generators
+- Implement AXI protocol state machines
+
+Your testbench ONLY needs to:
+1. Generate clock (e.g., 10ns period)
+2. Apply proper reset sequence (assert low, then release)
+3. Wait sufficient time for the internal master to complete (~16 transactions)
+4. Call $finish to end simulation
+
+The internal axi4_coverage module automatically tracks and reports functional coverage at simulation end.""",
+                why_legitmate="Explains DUT architecture without revealing grading implementation details"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""QUALITY CHECK WARNING: Do NOT use hierarchical references to access internal DUT signals!
+
+WRONG (will fail quality checks):
+```systemverilog
+wire [31:0] mon_awaddr = dut.axi_awaddr;  // ILLEGAL!
+wire mon_awvalid = dut.axi_awvalid;       // ILLEGAL!
+```
+
+The axi4_top module only exposes two ports: clk and resetn.
+You cannot and should not access internal signals like dut.axi_awaddr.
+
+Using hierarchical references will result in quality check failure (0 points for that phase).""",
+                why_legitmate="Warns about common mistake that causes grading failure without revealing grader internals"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""MINIMAL VALID TESTBENCH STRUCTURE:
+
+```systemverilog
+`timescale 1ns/1ps
+
+module axi4_top_tb;
+    logic clk;
+    logic resetn;
+    
+    // Clock generation
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk;  // 100MHz
+    end
+    
+    // Reset sequence
+    initial begin
+        resetn = 0;
+        #100;
+        resetn = 1;
+    end
+    
+    // DUT instantiation
+    axi4_top dut (
+        .clk(clk),
+        .resetn(resetn)
+    );
+    
+    // Run simulation long enough for internal master to complete
+    initial begin
+        #50000;  // 50us - enough for ~16 transactions
+        $finish;
+    end
+endmodule
+```
+
+This simple testbench is sufficient! The internal master generates all traffic.""",
+                why_legitmate="Provides correct testbench pattern without revealing mutation or coverage specifics"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""sim_main.cpp TEMPLATE for Verilator:
+
+```cpp
+#include <verilated.h>
+#include "Vaxi4_top_tb.h"
+
+int main(int argc, char** argv) {
+    Verilated::commandArgs(argc, argv);
+    Vaxi4_top_tb* tb = new Vaxi4_top_tb;
+    
+    while (!Verilated::gotFinish()) {
+        tb->eval();
+    }
+    
+    tb->final();
+    delete tb;
+    return 0;
+}
+```
+
+This is the minimal C++ wrapper needed for Verilator simulation.""",
+                why_legitmate="Standard Verilator boilerplate that any documentation would provide"
+            ),
+        ],
     )
 )

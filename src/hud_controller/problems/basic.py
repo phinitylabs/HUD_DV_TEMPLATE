@@ -469,3 +469,98 @@ This is the minimal C++ wrapper needed for Verilator simulation.""",
         ],
     )
 )
+
+
+# =============================================================================
+# Problem 6: AXI4 Burst Boundary SVA Assertion Generation
+# =============================================================================
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem6_axi4_burst_sva",
+        description="""Write SystemVerilog Assertions (SVA) to verify AXI4 burst address calculations.
+
+**Task**: Add SVA assertions to verify burst boundary handling in an AXI4 slave.
+
+**Focus Areas**:
+1. INCR burst address increment verification
+2. FIXED burst address stability verification
+3. WRAP burst boundary calculation verification
+4. 4KB boundary crossing detection
+5. Burst length (WLAST/RLAST) correctness
+
+**Key Burst Types**:
+- FIXED (2'b00): Address stays constant for all beats
+- INCR (2'b01): Address increments by transfer size each beat
+- WRAP (2'b10): Address wraps at calculated boundary
+
+**Requirements**:
+- Add assertions to verif/axi4_slave_tb.sv
+- Use proper SVA syntax with property and assert property
+- Include disable iff (!aresetn) for reset handling
+- Track burst state using helper signals
+
+**Files to Modify**:
+- verif/axi4_slave_tb.sv - Add assertions in marked section
+
+**Success Criteria**:
+1. Compile with Verilator
+2. No false positives on golden DUT
+3. Detect burst address bugs""",
+        difficulty="medium",
+        base="Problem6_axi4_burst_sva_baseline",
+        test="Problem6_axi4_burst_sva_test",
+        golden="Problem6_axi4_burst_sva_golden",
+        test_files=["tests/test_Problem6_axi4_burst_sva_hidden.py"],
+    )
+)
+
+
+# =============================================================================
+# Problem 7: AXI4 Interrupt Controller TB+Assertion Generation
+# =============================================================================
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem7_axi4_interrupt_tb",
+        description="""Create a testbench with assertions to verify the AXI4 interrupt controller.
+
+**Task**: Write a comprehensive testbench for interrupt controller verification.
+
+**Interrupt Controller Behavior**:
+- IDLE → PENDING: When interrupt_req asserts
+- PENDING → ACKNOWLEDGED: After 1 cycle delay
+- ACKNOWLEDGED → IDLE: When interrupt_req deasserts
+
+**Requirements**:
+
+1. **Testbench Structure**:
+   - Clock generation (10ns period)
+   - Reset sequence
+   - DUT instantiation (axi4_top)
+   - Interrupt test sequences
+
+2. **Test Scenarios**:
+   - Basic handshake: Assert req, verify ack timing
+   - Hold requirement: ack stays HIGH while req HIGH
+   - De-assertion: ack goes LOW after req goes LOW
+   - Multiple interrupts: Successive cycles work
+   - Reset behavior: State clears on reset
+
+3. **SVA Assertions**:
+   - ack only asserts after req
+   - ack timing within 3 cycles of req
+   - ack stability during acknowledge state
+   - Proper deassert behavior
+
+**Files to Create**:
+- verif/axi4_top_tb.sv - Testbench with assertions
+- verif/sim_main.cpp - Verilator C++ wrapper
+
+**IMPORTANT**: Do NOT use hierarchical references (dut.u_interrupt.state).
+Only use top-level ports (clk, resetn, interrupt_req, interrupt_ack).""",
+        difficulty="hard",
+        base="Problem7_axi4_interrupt_tb_baseline",
+        test="Problem7_axi4_interrupt_tb_test",
+        golden="Problem7_axi4_interrupt_tb_golden",
+        test_files=["tests/test_Problem7_axi4_interrupt_tb_hidden.py"],
+    )
+)

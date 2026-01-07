@@ -1,12 +1,12 @@
-# Agent Evaluation Framework Template
+# Design Verification (DV) Agent Evaluation Framework
 
 ## Overview
 
-This is a template framework for creating and evaluating AI agent tasks. It provides a structured approach to:
-- Define coding tasks with clear specifications
-- Grade agent solutions automatically using test-based validation
-- Manage multiple task difficulties (easy, medium, hard)
-- Run tasks in isolated environments with proper grading
+This framework is designed for creating and evaluating **Design Verification** tasks for AI agents. It focuses on:
+- SystemVerilog testbench creation
+- SVA (SystemVerilog Assertions) generation
+- Mutation testing for assertion quality validation
+- Coverage-based grading
 
 ## Project Structure
 
@@ -16,192 +16,337 @@ This is a template framework for creating and evaluating AI agent tasks. It prov
 │   ├── app.py                   # Main MCP server and entry points
 │   ├── spec.py                  # Core specifications (Problem, Grade, Grader)
 │   ├── grading_runner.py        # Test execution and grading logic
-│   ├── utils.py                 # Utility functions
-│   ├── setup.py                 # Environment setup
-│   ├── problems/                # Task definitions by difficulty
-│   │   ├── basic.py             # Easy difficulty tasks
+│   ├── problems/                # Task definitions
+│   │   └── basic.py             # Problem definitions with hints
 │   └── tools/                   # MCP tools for testing
-│       ├── base.py              # Base tool definitions
-│       ├── bash.py              # Bash execution
-│       ├── edit.py              # File editing
-│       └── run.py               # Command running
+├── utils/
+│   └── imagectl3.py             # Docker image build/validate/push utility
 ├── pyproject.toml               # Python package configuration
-├── Dockerfile                   # Container setup
+├── Dockerfile                   # Container setup with Verilator
 └── README.md                    # This file
 ```
 
-## Core Concepts
+## DV Problem Examples
 
-### 1. Problem Definition
+### Example 1: SVA Assertion Generation (Problem 3)
 
-Problems are defined using the `ProblemSpec` data class with these key fields:
-
-```python
-    ProblemSpec(
-        id="simple_counter", # the unique ID of the problem
-        description="""Please implement a simple synchronous counter that with reset, enable, and load functionality.
-Inputs:
-clk - Clock signal (triggers on rising edge)
-rst - Synchronous reset signal
-ena - Enable signal (allows counting)
-set - Load signal (sets counter to a specific value)
-din - 8-bit data input (value to load when set is high)
-Output:
-counter - 8-bit counter value        
-        
-""", # What you want the agent to do
-        difficulty="easy", # how difficult the problem is
-        # the branch names
-        base="simple_counter_baseline", 
-        test="simple_counter_test",
-        golden="simple_counter_golden",
-        test_files=["tests/test_simple_counter_hidden.py"]
-    )
-```
-
-### 2. Test-Based Validation
-
-Tasks are graded by:
-1. Copying the repository (including whatever changes the agent made) to a clean workspace
-2. Applying the agent's solution patch
-3. Applying a test patch on top of what the agent did (adds tests that would fail in an unmodified repo)
-4. Running `pytest <test files>` to test the build 
-
-## Creating New Tasks
-
-### Step 1: Prepare Git Branches
-
-You need three branches in your target repository (the one that we clone in the dockerfile):
-
-1. **baseline** - Starting state with the bug/missing feature
-2. **test** - Adds tests that should fail on baseline, and pass in golden branch
-3. **golden** - Contains the correct solution (for reference). Notably, this should not contain the tests.
-
-### Step 2: Define the Task
-
-We currently only have src/hud_controller/problems/basic.py, but feel free to make more files in the subdirectory.
-Once you do that, you can add a problem to the registry as follows:
+This is a mutation-testing based problem where the agent must write assertions that catch bugs:
 
 ```python
 PROBLEM_REGISTRY.append(
     ProblemSpec(
-        id="simple_counter",
-        description="""Please implement a simple synchronous counter that with reset, enable, and load functionality.
-Inputs:
-clk - Clock signal (triggers on rising edge)
-rst - Synchronous reset signal
-ena - Enable signal (allows counting)
-set - Load signal (sets counter to a specific value)
-din - 8-bit data input (value to load when set is high)
-Output:
-counter - 8-bit counter value        
-        
+        id="Problem3_axi4_sva_1",
+        description="""Add SystemVerilog Assertions (SVA) to verify AXI4 slave correctness.
+
+**Context**: 
+You are provided with a complete AXI4 slave testbench that includes:
+- DUT instantiation (axi4_slave_top)
+- Clock generation and reset sequence
+- Protocol-compliant write/read transaction tasks
+
+The testbench compiles and runs successfully, but lacks assertions to catch bugs.
+
+**Your Task**:
+Add 8-12 SVA assertions in the marked section of `verif/axi4_slave_tb.sv`. 
+Your assertions will be tested against MUTANT designs containing real bugs.
+To pass, your assertions must DETECT these bugs.
+
+**Target Bug Categories**:
+1. AXI4 handshake violations
+2. Write strobe (WSTRB) handling errors  
+3. Response code bugs
+4. Burst counter errors
+5. Reset behavior issues
+
+**Grading Criteria**:
+- Phase 1: Compilation (15%) - Must compile with Verilator
+- Phase 2: No False Positives (20%) - No assertions fire on golden DUT
+- Phase 3: Mutation Testing (40%) - Kill 3+ of 5 mutants
+- Phase 4: Structural Quality (25%) - Proper SVA syntax, no cheating
 """,
-        difficulty="easy",
-        base="simple_counter_baseline",
-        test="simple_counter_test",
-        golden="simple_counter_golden",
-        test_files=["tests/test_simple_counter_hidden.py"],
+        difficulty="medium",
+        base="Problem3_axi4_sva_1_baseline",
+        test="Problem3_axi4_sva_1_test",
+        golden="Problem3_axi4_sva_1_golden",
+        test_files=["tests/test_Problem3_axi4_sva_1_hidden.py"],
+        hints=[
+            HintSpec(
+                hint_type="legit",
+                text="""Use proper SVA syntax with disable iff for reset:
+```systemverilog
+property p_awvalid_stable;
+    @(posedge aclk) disable iff (!aresetn)
+    (awvalid && !awready) |=> awvalid;
+endproperty
+assert property (p_awvalid_stable);
+```""",
+                why_legitmate="Shows SVA syntax without revealing specific bugs"
+            ),
+        ],
     )
 )
 ```
 
-The base, test, and golden branches must correspond to the branches you created in the first step. 
+### Example 2: Comprehensive Testbench Creation (Problem 2)
 
-### Step 3: Validate your problem
+```python
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem2_axi4_tb_1",
+        description="""Create a comprehensive SystemVerilog testbench for an AXI4 slave module.
 
-It's important to ensure that your problems pass a basic sanity check:
-* All tests at the baseline branch should pass
-* When we apply the hidden test set, the hidden tests should fail
-* When we apply the golden patch and then apply the hidden test set, all tests should pass
+**Task**: Write a complete testbench that verifies the AXI4 slave functionality.
 
-To help you with this, we have a script called `utils/imagectl3.py`.
+**Requirements**:
 
-To run and build the images you can do:
+1. **Create Testbench Files**:
+   - verif/axi4_slave_tb.sv - SystemVerilog testbench
+   - verif/sim_main.cpp - Verilator C++ wrapper
+
+2. **Testbench Must Include**:
+   - Clock generation (100MHz recommended)
+   - Reset sequence
+   - DUT instantiation
+   - AXI4 write transaction tasks
+   - AXI4 read transaction tasks
+   - Data verification (read-back check)
+
+3. **Test Scenarios to Cover**:
+   - Single-beat write and read
+   - Multi-beat burst transactions (INCR, FIXED, WRAP)
+   - Different data widths with byte strobes
+   - Address boundary conditions
+
+**Grading Criteria** (5-phase evaluation):
+- Phase 1: Compilation with Verilator
+- Phase 2: No false positives on golden DUT
+- Phase 3: Coverage >= 60% line coverage
+- Phase 4: Mutation detection >= 5/10 mutants killed
+- Phase 5: Quality checks (structural validation)
+""",
+        difficulty="hard",
+        base="Problem2_axi4_tb_1_baseline",
+        test="Problem2_axi4_tb_1_test",
+        golden="Problem2_axi4_tb_1_golden",
+        test_files=["tests/test_Problem2_axi4_tb_1_hidden.py"],
+    )
+)
+```
+
+## Creating New DV Tasks
+
+### What You Need to Create
+
+For each DV problem, you need to prepare:
+
+| Component | Description | Location |
+|-----------|-------------|----------|
+| **Baseline Branch** | Starting code with DUT, partial/empty testbench | `{problem_id}_baseline` branch in target repo |
+| **Test Branch** | Hidden grader + mutants (extends baseline) | `{problem_id}_test` branch |
+| **Golden Branch** | Reference solution (extends baseline) | `{problem_id}_golden` branch |
+| **Problem Spec** | Task description, hints | `src/hud_controller/problems/basic.py` |
+| **Hidden Grader** | Python test file with grading logic | `tests/test_{problem_id}_hidden.py` |
+| **Mutants** (optional) | Buggy DUT variants for mutation testing | `tests/mutants/M01_*/`, `tests/mutants/M02_*/` |
+
+### Step 1: Create Git Branches in Target Repository
+
+**Baseline Branch** (`{problem_id}_baseline`):
+```
+├── sources/           # DUT RTL files
+│   ├── axi4_slave.sv
+│   └── axi4_pkg.sv
+├── verif/             # Empty or partial testbench
+│   └── axi4_slave_tb.sv   # Agent will modify this
+├── docs/
+│   └── Specification.md   # Protocol/design documentation
+└── Makefile           # Build commands
+```
+
+**Test Branch** (`{problem_id}_test`):
+```
+├── tests/
+│   ├── test_{problem_id}_hidden.py   # Hidden grader
+│   ├── grader.py                      # Grading logic
+│   └── mutants/                       # For mutation testing
+│       ├── M01_bug_name/
+│       │   └── axi4_slave.sv          # Buggy variant
+│       ├── M02_another_bug/
+│       │   └── axi4_slave.sv
+│       └── ...
+└── (all baseline files)
+```
+
+**Golden Branch** (`{problem_id}_golden`):
+```
+├── verif/
+│   └── axi4_slave_tb.sv   # Complete reference solution
+└── (all baseline files, NO test files)
+```
+
+### Step 2: Create the Hidden Grader
+
+The grader runs multiple phases:
+
+```python
+# tests/test_{problem_id}_hidden.py
+import pytest
+from tests.grader import DVGrader
+
+WEIGHTS = {
+    "compilation": 0.15,      # Must compile with Verilator
+    "no_false_positives": 0.20,  # No errors on golden DUT
+    "mutation": 0.40,         # Mutants killed / total mutants
+    "structural": 0.25,       # Code quality checks
+}
+
+PASS_THRESHOLD = 0.60  # 60% to pass
+
+class TestDVGeneration:
+    def test_dv_task(self):
+        grader = DVGrader(
+            tb_path="verif/axi4_slave_tb.sv",
+            sources_dir="sources",
+            mutants_dir="tests/mutants"
+        )
+        result = grader.grade()
+        
+        # Calculate weighted score
+        total = (
+            result.compiled * WEIGHTS["compilation"] +
+            result.no_false_positives * WEIGHTS["no_false_positives"] +
+            result.mutation_score * WEIGHTS["mutation"] +
+            result.structural_score * WEIGHTS["structural"]
+        )
+        
+        assert total >= PASS_THRESHOLD, f"Score {total:.1%} < {PASS_THRESHOLD:.0%}"
+```
+
+### Step 3: Create Mutants for Mutation Testing
+
+Each mutant is a buggy version of the DUT that good assertions should catch:
+
+```
+tests/mutants/
+├── M01_handshake_bug/
+│   └── axi4_slave.sv     # Bug: AWREADY doesn't wait for AWVALID
+├── M02_wstrb_ignored/
+│   └── axi4_slave.sv     # Bug: Write strobe is ignored
+├── M03_burst_counter/
+│   └── axi4_slave.sv     # Bug: Burst counter wraps incorrectly
+├── M04_reset_bug/
+│   └── axi4_slave.sv     # Bug: State not cleared on reset
+└── M05_response_code/
+    └── axi4_slave.sv     # Bug: Wrong response code generated
+```
+
+### Step 4: Add Anti-Cheat Checks
+
+Prevent agents from "cheating" by:
+
+```python
+# In grader.py - phase4_structural()
+def check_quality(self, tb_content: str) -> StructuralResult:
+    result = StructuralResult()
+    
+    # Check for hierarchical references (cheating!)
+    if re.search(r'dut\.\w+_channel\.', tb_content):
+        result.illegal_patterns.append("Hierarchical reference to DUT internals")
+    
+    # Check for hardcoded errors (not real assertions)
+    if re.search(r'initial\s+begin.*\$error', tb_content, re.DOTALL):
+        result.illegal_patterns.append("Hardcoded $error")
+    
+    # Verify minimum assertion count
+    assertions = re.findall(r'assert\s+property', tb_content)
+    result.assertion_count = len(assertions)
+    
+    return result
+```
+
+### Step 5: Add Problem Definition with Hints
+
+```python
+# src/hud_controller/problems/basic.py
+PROBLEM_REGISTRY.append(
+    ProblemSpec(
+        id="Problem3_axi4_sva_1",
+        description="""...""",  # Task description
+        difficulty="medium",    # easy, medium, hard
+        base="Problem3_axi4_sva_1_baseline",
+        test="Problem3_axi4_sva_1_test", 
+        golden="Problem3_axi4_sva_1_golden",
+        test_files=["tests/test_Problem3_axi4_sva_1_hidden.py"],
+        hints=[
+            HintSpec(
+                hint_type="legit",
+                text="""Your hint text here...""",
+                why_legitmate="Explains why this hint is fair"
+            ),
+        ],
+    )
+)
+```
+
+### Step 6: Validate Your Problem
+
 ```bash
-uv run utils/imagectl3.py --build --validate
+# Build and validate the Docker image
+uv run utils/imagectl3.py verilog --ids Problem3_axi4_sva_1 -b -v
+
+# With hints enabled
+uv run utils/imagectl3.py verilog --ids Problem3_axi4_sva_1 -b -v --hints all
+
+# Parallel build/validate for multiple problems
+uv run utils/imagectl3.py verilog -bv --jobs 4
 ```
-You can specify the exact image you want to test with the `--ids` flag. 
-You can also make this easier to type by using the shorform `-b` flag for `--build` and the shortform `-v` flag for `--validate`.
+
+Validation checks:
+1. ✅ Baseline compiles
+2. ✅ Test patch applies and fails tests (baseline has bugs)
+3. ✅ Golden patch applies and passes tests
+
+## Running Evaluations
+
+### Local Evaluation
 ```bash
-uv run utils/imagectl3.py -bv --ids simple_counter
+uv run hud eval local-hud.json claude --max-steps 50
 ```
-Note: ensure your image is built before you try to validate it.
 
-## Running Tasks
-
-### Setup Environment
-
+### Remote Evaluation (requires Docker Hub push)
 ```bash
-uv sync
-```
-### Build, Validate all problems and generate Json
+# Build, validate, and push
+uv run utils/imagectl3.py dockerhub_username/verilog -bvp --jobs 4
 
-```bash
-uv run utils/imagectl3.py verilog_ -bvj
-```
-This will build all the docker images, with the prefix `verilog_` and then run the validation workflow. 
-Once you get a lot of problems, you'll find it helpful to do building and validation in parallel with `--jobs`:
-```bash
-uv run utils/imagectl3.py verilog_ -bvj --jobs 4
+# Run remote eval
+uv run hud eval remote-hud.json claude --max-steps 50
 ```
 
-### Run hud eval locally
-You can run the images locally with:
-```
-uv run hud local-hud.json claude --max-steps 50
-```
+## Grading Weights (Typical DV Problem)
 
-### Run hud eval remotely
-You can run them remotely too! However, you'll need to push the images. T
-To make this easier, we have the `--push` or `-p` flag in imagectl3. 
-Note that we also change the image prefix to make it pushable to docker hub.
-```bash
-uv run utils/imagectl3.py govindhud/verilog_ -bvjp --jobs 4
-```
-Once all images are pushed, we can:
-```
-uv run hud remote-hud.json claude --max-steps 50
-```
+| Phase | Weight | Description |
+|-------|--------|-------------|
+| Compilation | 15% | Code compiles with Verilator |
+| No False Positives | 20% | No assertion fires on golden DUT |
+| Mutation Testing | 40% | Percentage of mutants killed |
+| Structural Quality | 25% | Proper syntax, no cheating |
 
+**Pass Threshold**: Usually 60%
 
-## Configuration
-
-### Environment Variables
-
-Key environment variables used by the grading system:
-
-- `MCP_TESTING_MODE` - Enable testing tools (default: "1")
-- `NODE_ENV` - Node environment (set to "test" for testing)
-- `WEBHOOK_FAILURE_TIME_WINDOW` - Example task-specific config
-- `WEBHOOK_FAILURE_RATE_THRESHOLD` - Example task-specific config
-
-### Docker Configuration
-
-The included `Dockerfile` sets up the complete environment:
-- Base system with required tools
-- verilog
-- VNC for GUI testing (if needed)
-
-
-## Best Practices
+## Best Practices for DV Tasks
 
 ### Task Design
+1. **Clear Bug Categories**: Define what types of bugs assertions should catch
+2. **Realistic Mutants**: Create mutants based on real design bugs
+3. **Fair Grading**: Balance mutation difficulty - not too easy, not impossible
+4. **Helpful Hints**: Guide syntax without revealing specific bugs
 
-1. **Clear Descriptions**: Provide detailed, unambiguous task descriptions
-2. **Focused Scope**: Each task should test one concept or skill
-3. **Realistic Scenarios**: Base tasks on real-world debugging/development scenarios
-4. **Fair Hints**: If providing hints, ensure they guide without giving away the solution
+### Mutant Design
+1. **Single Bug Per Mutant**: Each mutant should have one focused bug
+2. **Catchable Bugs**: Bugs should be detectable via external interface
+3. **Documented Bugs**: Comment what's wrong in each mutant file
+4. **Varied Categories**: Cover different bug types (timing, logic, protocol)
 
-### Test Design
-
-1. **Comprehensive Coverage**: Tests should fully validate the requirement
-2. **Clear Failures**: Test failures should clearly indicate what's wrong
-3. **Minimal Changes**: Test patches should only add tests, not modify existing code
-4. **Isolation**: Tests should not depend on external state
-
-### Branch Management
-
-1. **Clean Baseline**: Baseline should be stable and buildable
-2. **Minimal Test Patch**: Only add tests that verify the specific requirement
-3. **Correct Golden**: Golden solution should be minimal and idiomatic
+### Anti-Cheat
+1. **Block Hierarchical References**: Agents shouldn't peek at DUT internals
+2. **Require Real Assertions**: Not just `$error` in initial blocks
+3. **Minimum Assertion Count**: Require enough assertions for coverage

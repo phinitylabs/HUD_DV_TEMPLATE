@@ -472,52 +472,42 @@ This is the minimal C++ wrapper needed for Verilator simulation.""",
 
 
 # =============================================================================
-# Problem 6: AXI4 Burst Boundary SVA Assertion Generation
+# Problem 6: AXI4 Burst Boundary SVA Assertion Generation (Simplified)
 # =============================================================================
 PROBLEM_REGISTRY.append(
     ProblemSpec(
         id="Problem6_axi4_burst_sva",
-        description="""Write SystemVerilog Assertions (SVA) to verify AXI4 burst address calculations.
+        description="""Add ONE more SVA assertion to verify AXI4 burst behavior.
 
-**Task**: Add SVA assertions to the testbench to verify burst boundary handling.
+**Task**: The testbench already has one example assertion. Add at least 1 more assertion.
 
-**IMPORTANT - READ CAREFULLY**:
-- The testbench already has BURST TRACKING LOGIC implemented for you
-- Use the provided tracking signals: wr_current_addr, wr_beat_count, rd_current_addr, etc.
-- DO NOT use hierarchical references like dut.u_write_channel.* (will fail grading!)
+**IMPORTANT**:
+- One INCR address check assertion is already provided as an example
+- You just need to add 1 more assertion (WLAST timing or INCR read check)
+- DO NOT use hierarchical references like dut.u_write_channel.* (will fail!)
+- Use the provided tracking signals (wr_*, rd_*)
 
-**Focus Areas**:
-1. INCR burst address increment verification
-2. FIXED burst address stability verification  
-3. WRAP burst boundary calculation verification
-4. 4KB boundary crossing detection
-5. Burst length (WLAST/RLAST) correctness
+**Available Tracking Signals** (already in testbench):
+- wr_in_burst, wr_current_addr, wr_prev_addr, wr_addr_incr
+- rd_in_burst, rd_current_addr, rd_prev_addr, rd_addr_incr  
+- wr_beat_count, rd_beat_count
 
-**Key Burst Types**:
-- FIXED (2'b00): Address stays constant for all beats
-- INCR (2'b01): Address increments by transfer size each beat
-- WRAP (2'b10): Address wraps at calculated boundary
-
-**Available Tracking Signals** (already implemented in testbench):
-- wr_in_burst, wr_start_addr, wr_current_addr, wr_prev_addr
-- wr_beat_count, wr_total_beats, wr_burst_size, wr_burst_type
-- wr_wrap_boundary, wr_wrap_size, wr_addr_incr
-- (Same signals for read: rd_*)
-
-**Requirements**:
-- Add assertions to verif/axi4_slave_tb.sv in the marked section
-- Use proper SVA syntax: property + assert property
-- Include disable iff (!aresetn) for reset handling
-- Use ONLY the provided tracking signals (not dut.* internals)
+**What to Add** (pick one):
+1. WLAST timing: Check burst ends when wlast is asserted
+2. INCR read: Same as write example but for read channel
 
 **Files to Modify**:
-- verif/axi4_slave_tb.sv - Add assertions in marked section
+- verif/axi4_slave_tb.sv - Add assertion where marked
 
-**Success Criteria**:
-1. Compile with Verilator
-2. No false positives on golden DUT
-3. Detect burst address bugs in mutant designs""",
-        difficulty="medium",
+**Example pattern for WLAST**:
+```systemverilog
+property p_wlast_timing;
+    @(posedge aclk) disable iff (!aresetn)
+    (wr_in_burst && wvalid && wready && wlast) |=> (!wr_in_burst);
+endproperty
+assert property (p_wlast_timing) else $error("WLAST error");
+```""",
+        difficulty="easy",
         base="Problem6_axi4_burst_sva_baseline",
         test="Problem6_axi4_burst_sva_test",
         golden="Problem6_axi4_burst_sva_golden",
@@ -525,36 +515,27 @@ PROBLEM_REGISTRY.append(
         hints=[
             HintSpec(
                 hint_type="legit",
-                text="""The testbench already has burst tracking implemented! Look for these signals:
+                text="""Look at the existing example assertion in the testbench - just add one similar assertion!
 
-Write tracking: wr_in_burst, wr_current_addr, wr_prev_addr, wr_beat_count, wr_burst_type, etc.
-Read tracking: rd_in_burst, rd_current_addr, rd_prev_addr, rd_beat_count, rd_burst_type, etc.
-
-Example assertion using these signals:
+For WLAST timing check:
 ```systemverilog
-property p_wr_incr_check;
+property p_wlast_ends_burst;
     @(posedge aclk) disable iff (!aresetn)
-    (wr_in_burst && wvalid && wready && wr_burst_type == BURST_INCR && wr_beat_count > 0)
-    |-> (wr_current_addr == wr_prev_addr + wr_addr_incr);
+    (wr_in_burst && wvalid && wready && wlast) |=> (!wr_in_burst);
 endproperty
-assert property (p_wr_incr_check) else $error("INCR address mismatch");
+assert property (p_wlast_ends_burst) else $error("WLAST timing error");
 ```
 
-DO NOT access dut.u_write_channel.* or dut.u_read_channel.* - use the testbench signals!""",
-                why_legitmate="Points to existing tracking signals and shows correct assertion pattern"
-            ),
-            HintSpec(
-                hint_type="legit",
-                text="""Key assertions to implement:
-
-1. INCR burst: Check wr_current_addr == wr_prev_addr + wr_addr_incr on each beat
-2. FIXED burst: Check wr_current_addr == wr_start_addr throughout burst
-3. WRAP burst: Check address stays within [wr_wrap_boundary, wr_wrap_boundary + wr_wrap_size)
-4. 4KB boundary: Check start_addr[31:12] == (start_addr + total_bytes - 1)[31:12]
-5. WLAST/RLAST: Check wlast asserts when wr_beat_count == wr_total_beats - 1
-
-Remember: Apply same checks for read channel (rd_*) signals!""",
-                why_legitmate="Lists specific assertions needed without revealing mutant details"
+Or for INCR read check (copy write example, change to rd_*):
+```systemverilog
+property p_incr_rd_addr;
+    @(posedge aclk) disable iff (!aresetn)
+    (rd_in_burst && rvalid && rready && rd_burst_type == BURST_INCR && rd_beat_count > 0)
+    |-> (rd_current_addr == rd_prev_addr + rd_addr_incr);
+endproperty
+assert property (p_incr_rd_addr) else $error("INCR read error");
+```""",
+                why_legitmate="Provides complete solution patterns for the simplified task"
             ),
         ],
     )

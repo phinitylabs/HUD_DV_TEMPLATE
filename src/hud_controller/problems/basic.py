@@ -479,11 +479,16 @@ PROBLEM_REGISTRY.append(
         id="Problem6_axi4_burst_sva",
         description="""Write SystemVerilog Assertions (SVA) to verify AXI4 burst address calculations.
 
-**Task**: Add SVA assertions to verify burst boundary handling in an AXI4 slave.
+**Task**: Add SVA assertions to the testbench to verify burst boundary handling.
+
+**IMPORTANT - READ CAREFULLY**:
+- The testbench already has BURST TRACKING LOGIC implemented for you
+- Use the provided tracking signals: wr_current_addr, wr_beat_count, rd_current_addr, etc.
+- DO NOT use hierarchical references like dut.u_write_channel.* (will fail grading!)
 
 **Focus Areas**:
 1. INCR burst address increment verification
-2. FIXED burst address stability verification
+2. FIXED burst address stability verification  
 3. WRAP burst boundary calculation verification
 4. 4KB boundary crossing detection
 5. Burst length (WLAST/RLAST) correctness
@@ -493,11 +498,17 @@ PROBLEM_REGISTRY.append(
 - INCR (2'b01): Address increments by transfer size each beat
 - WRAP (2'b10): Address wraps at calculated boundary
 
+**Available Tracking Signals** (already implemented in testbench):
+- wr_in_burst, wr_start_addr, wr_current_addr, wr_prev_addr
+- wr_beat_count, wr_total_beats, wr_burst_size, wr_burst_type
+- wr_wrap_boundary, wr_wrap_size, wr_addr_incr
+- (Same signals for read: rd_*)
+
 **Requirements**:
-- Add assertions to verif/axi4_slave_tb.sv
-- Use proper SVA syntax with property and assert property
+- Add assertions to verif/axi4_slave_tb.sv in the marked section
+- Use proper SVA syntax: property + assert property
 - Include disable iff (!aresetn) for reset handling
-- Track burst state using helper signals
+- Use ONLY the provided tracking signals (not dut.* internals)
 
 **Files to Modify**:
 - verif/axi4_slave_tb.sv - Add assertions in marked section
@@ -505,7 +516,7 @@ PROBLEM_REGISTRY.append(
 **Success Criteria**:
 1. Compile with Verilator
 2. No false positives on golden DUT
-3. Detect burst address bugs""",
+3. Detect burst address bugs in mutant designs""",
         difficulty="medium",
         base="Problem6_axi4_burst_sva_baseline",
         test="Problem6_axi4_burst_sva_test",
@@ -514,82 +525,36 @@ PROBLEM_REGISTRY.append(
         hints=[
             HintSpec(
                 hint_type="legit",
-                text="""CRITICAL: Do NOT use hierarchical references to access DUT internal signals!
+                text="""The testbench already has burst tracking implemented! Look for these signals:
 
-WRONG (will result in 0 points):
+Write tracking: wr_in_burst, wr_current_addr, wr_prev_addr, wr_beat_count, wr_burst_type, etc.
+Read tracking: rd_in_burst, rd_current_addr, rd_prev_addr, rd_beat_count, rd_burst_type, etc.
+
+Example assertion using these signals:
 ```systemverilog
-// These will FAIL quality checks - DO NOT USE:
-property p_wr_incr;
-    (wr_in_burst) |-> (dut.u_write_channel.current_addr == expected_addr);
-endproperty
-```
-
-Using paths like `dut.u_write_channel.*` or `dut.u_read_channel.*` is considered cheating and will result in 0 points for quality checks.
-
-You must verify DUT behavior ONLY through port-level AXI signals (awaddr, wdata, rdata, etc.).""",
-                why_legitmate="Warns about the most common mistake causing 0% pass rate without revealing grader implementation"
-            ),
-            HintSpec(
-                hint_type="legit",
-                text="""To verify burst address calculations, use DATA INTEGRITY verification:
-
-1. Write unique data patterns to each burst beat (e.g., `base_data + beat_index`)
-2. Read back from each EXPECTED address individually
-3. Compare read data against expected values
-
-Example approach:
-```systemverilog
-// In test task for INCR burst:
-for (int i = 0; i < burst_len+1; i++) begin
-    // Write unique data: 0xBEEF_0000 + i at each beat
-end
-
-// Verify by reading each address:
-for (int i = 0; i < burst_len+1; i++) begin
-    addr = start_addr + (i * (1 << burst_size));
-    // Read addr and verify data == 0xBEEF_0000 + i
-end
-```
-
-If DUT has wrong address calculation, data won't match at expected locations.""",
-                why_legitmate="Shows verification approach without revealing specific mutant implementations"
-            ),
-            HintSpec(
-                hint_type="legit",
-                text="""CORRECT ASSERTION PATTERN - Track expected values in testbench:
-
-```systemverilog
-// Track burst state in testbench (NOT from DUT internals!)
-logic [31:0] wr_expected_addr;
-logic [31:0] wr_prev_addr;
-
-always_ff @(posedge aclk) begin
-    if (!aresetn) begin
-        wr_expected_addr <= '0;
-        wr_prev_addr <= '0;
-    end else if (awvalid && awready) begin
-        wr_expected_addr <= awaddr;  // Capture start address
-        wr_prev_addr <= awaddr;
-    end else if (wvalid && wready && wr_in_burst) begin
-        wr_prev_addr <= wr_expected_addr;
-        case (wr_burst_type)
-            BURST_INCR: wr_expected_addr <= wr_expected_addr + (1 << wr_burst_size);
-            BURST_FIXED: wr_expected_addr <= wr_expected_addr;  // No change
-            // ... WRAP logic
-        endcase
-    end
-end
-
-// Assertion checks testbench tracking consistency (no DUT internals!)
-property p_incr_addr;
+property p_wr_incr_check;
     @(posedge aclk) disable iff (!aresetn)
-    (wvalid && wready && wr_burst_type == BURST_INCR && wr_beat_count > 0)
-    |-> (wr_expected_addr == wr_prev_addr + (1 << wr_burst_size));
+    (wr_in_burst && wvalid && wready && wr_burst_type == BURST_INCR && wr_beat_count > 0)
+    |-> (wr_current_addr == wr_prev_addr + wr_addr_incr);
 endproperty
+assert property (p_wr_incr_check) else $error("INCR address mismatch");
 ```
 
-Key: Track what SHOULD happen, then verify via data readback.""",
-                why_legitmate="Shows correct testbench-based tracking without revealing grader details"
+DO NOT access dut.u_write_channel.* or dut.u_read_channel.* - use the testbench signals!""",
+                why_legitmate="Points to existing tracking signals and shows correct assertion pattern"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""Key assertions to implement:
+
+1. INCR burst: Check wr_current_addr == wr_prev_addr + wr_addr_incr on each beat
+2. FIXED burst: Check wr_current_addr == wr_start_addr throughout burst
+3. WRAP burst: Check address stays within [wr_wrap_boundary, wr_wrap_boundary + wr_wrap_size)
+4. 4KB boundary: Check start_addr[31:12] == (start_addr + total_bytes - 1)[31:12]
+5. WLAST/RLAST: Check wlast asserts when wr_beat_count == wr_total_beats - 1
+
+Remember: Apply same checks for read channel (rd_*) signals!""",
+                why_legitmate="Lists specific assertions needed without revealing mutant details"
             ),
         ],
     )

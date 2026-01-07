@@ -110,8 +110,8 @@ class GradingRunner:
 
         # Step 2: apply test patch
         logger.info(f"Applying test patch to {self.grade_working_dir}")
-        with open(self.test_patch_path) as f:
-            subprocess.run(["sudo", "-u", "ubuntu", "git", "apply"], check=True, cwd=self.grade_working_dir, input=f.read().encode("utf-8"))
+        with open(self.test_patch_path, 'rb') as f:
+            subprocess.run(["sudo", "-u", "ubuntu", "git", "apply"], check=True, cwd=self.grade_working_dir, input=f.read())
         logger.info(f"Applied test patch to {self.grade_working_dir}")
 
         # Step 3: compile the project (should work if the agent code compiles)
@@ -208,8 +208,8 @@ class GradingRunner:
 
         # Step 3: Apply test patch
         logger.info(f"Applying test patch from {self.test_patch_path}")
-        with open(self.test_patch_path) as f:
-            patch = f.read().encode("utf-8")
+        with open(self.test_patch_path, 'rb') as f:
+            patch = f.read()
         subprocess.run(
             ["sudo", "-u", "ubuntu", "git", "apply", "-"], input=patch, check=True, cwd=self.grade_working_dir
         )
@@ -245,14 +245,14 @@ class GradingRunner:
 
         # Step 6: Apply golden patch
         logger.info(f"Applying golden patch from {self.golden_patch_path}")
-        with open(self.golden_patch_path) as f:
+        with open(self.golden_patch_path, 'rb') as f:
             patch_content = f.read()
         
         # For DV tasks, golden patch might be empty (if baseline and golden are the same)
         # Allow empty patches - this is valid for DV tasks where golden might not have changes
         golden_patch_empty = not patch_content.strip()
         if not golden_patch_empty:
-            patch = patch_content.encode("utf-8")
+            patch = patch_content
             try:
                 subprocess.run(
                     ["sudo", "-u", "ubuntu", "git", "apply", "-"], 
@@ -275,8 +275,8 @@ class GradingRunner:
 
         # Step 7: Apply test patch again (using 3-way merge to handle overlapping changes)
         logger.info(f"Applying test patch again in {self.grade_working_dir}")
-        with open(self.test_patch_path) as f:
-            patch = f.read().encode("utf-8")
+        with open(self.test_patch_path, 'rb') as f:
+            patch = f.read()
         try:
             subprocess.run(
                 ["sudo", "-u", "ubuntu", "git", "apply", "-"], input=patch, check=True, cwd=self.grade_working_dir

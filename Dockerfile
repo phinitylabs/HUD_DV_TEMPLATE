@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 FROM ubuntu:24.04 AS setup
 
 # Update and install core dependencies (including working Chromium browser)
@@ -95,7 +94,7 @@ RUN git config --global user.name "mr agent"
 # =================================================================
 
 
-ENV random52=random52 
+ENV random59=random59
 RUN git clone https://github.com/phinitylabs/AXI4_DV_ENV.git /home/ubuntu/example-verilog-codebase
 
 WORKDIR /home/ubuntu/example-verilog-codebase

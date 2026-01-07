@@ -511,6 +511,87 @@ PROBLEM_REGISTRY.append(
         test="Problem6_axi4_burst_sva_test",
         golden="Problem6_axi4_burst_sva_golden",
         test_files=["tests/test_Problem6_axi4_burst_sva_hidden.py"],
+        hints=[
+            HintSpec(
+                hint_type="legit",
+                text="""CRITICAL: Do NOT use hierarchical references to access DUT internal signals!
+
+WRONG (will result in 0 points):
+```systemverilog
+// These will FAIL quality checks - DO NOT USE:
+property p_wr_incr;
+    (wr_in_burst) |-> (dut.u_write_channel.current_addr == expected_addr);
+endproperty
+```
+
+Using paths like `dut.u_write_channel.*` or `dut.u_read_channel.*` is considered cheating and will result in 0 points for quality checks.
+
+You must verify DUT behavior ONLY through port-level AXI signals (awaddr, wdata, rdata, etc.).""",
+                why_legitmate="Warns about the most common mistake causing 0% pass rate without revealing grader implementation"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""To verify burst address calculations, use DATA INTEGRITY verification:
+
+1. Write unique data patterns to each burst beat (e.g., `base_data + beat_index`)
+2. Read back from each EXPECTED address individually
+3. Compare read data against expected values
+
+Example approach:
+```systemverilog
+// In test task for INCR burst:
+for (int i = 0; i < burst_len+1; i++) begin
+    // Write unique data: 0xBEEF_0000 + i at each beat
+end
+
+// Verify by reading each address:
+for (int i = 0; i < burst_len+1; i++) begin
+    addr = start_addr + (i * (1 << burst_size));
+    // Read addr and verify data == 0xBEEF_0000 + i
+end
+```
+
+If DUT has wrong address calculation, data won't match at expected locations.""",
+                why_legitmate="Shows verification approach without revealing specific mutant implementations"
+            ),
+            HintSpec(
+                hint_type="legit",
+                text="""CORRECT ASSERTION PATTERN - Track expected values in testbench:
+
+```systemverilog
+// Track burst state in testbench (NOT from DUT internals!)
+logic [31:0] wr_expected_addr;
+logic [31:0] wr_prev_addr;
+
+always_ff @(posedge aclk) begin
+    if (!aresetn) begin
+        wr_expected_addr <= '0;
+        wr_prev_addr <= '0;
+    end else if (awvalid && awready) begin
+        wr_expected_addr <= awaddr;  // Capture start address
+        wr_prev_addr <= awaddr;
+    end else if (wvalid && wready && wr_in_burst) begin
+        wr_prev_addr <= wr_expected_addr;
+        case (wr_burst_type)
+            BURST_INCR: wr_expected_addr <= wr_expected_addr + (1 << wr_burst_size);
+            BURST_FIXED: wr_expected_addr <= wr_expected_addr;  // No change
+            // ... WRAP logic
+        endcase
+    end
+end
+
+// Assertion checks testbench tracking consistency (no DUT internals!)
+property p_incr_addr;
+    @(posedge aclk) disable iff (!aresetn)
+    (wvalid && wready && wr_burst_type == BURST_INCR && wr_beat_count > 0)
+    |-> (wr_expected_addr == wr_prev_addr + (1 << wr_burst_size));
+endproperty
+```
+
+Key: Track what SHOULD happen, then verify via data readback.""",
+                why_legitmate="Shows correct testbench-based tracking without revealing grader details"
+            ),
+        ],
     )
 )
 

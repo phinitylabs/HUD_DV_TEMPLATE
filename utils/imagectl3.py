@@ -179,6 +179,7 @@ def build_image(
     *,
     hints: str,
     problem_id: str,
+    no_cache: bool = False,
 ) -> bool:
     cmd = [
         "docker",
@@ -198,6 +199,8 @@ def build_image(
         "--add-host=host.docker.internal:172.17.0.1",
         context_dir,
     ]
+    if no_cache:
+        cmd.insert(2, "--no-cache")
     logger.info(
         f"Building image {image} (BASELINE_BRANCH={baseline_branch}, TEST_BRANCH={test_branch}, GOLDEN_BRANCH={golden_branch}, HINTS={hints}, PROBLEM_ID={problem_id})"
     )
@@ -316,6 +319,7 @@ def run_pipeline(
     push: bool,
     validate: bool,
     jobs: int = 1,
+    no_cache: bool = False,
 ) -> tuple[list[str], list[str], list[str], list[str], list[str], list[str]]:
     """
     Execute the build/push pipeline with specified number of concurrent workers.
@@ -367,6 +371,7 @@ def run_pipeline(
                 context_dir=context_dir,
                 hints=spec.hints,
                 problem_id=spec.id,
+                no_cache=no_cache,
             )
             with lists_lock:
                 build_index_counter[0] += 1
@@ -568,6 +573,12 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument(
         "--jobs", type=int, default=1, help="Number of parallel jobs for operations (default: 1)", metavar="N"
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        default=False,
+        help="Pass --no-cache to docker build (force rebuild without layer cache)",
+    )
 
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -602,6 +613,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             push=args.push,
             validate=args.validate,
             jobs=args.jobs,
+            no_cache=getattr(args, "no_cache", False),
         )
     else:
         # Only JSON was requested, no pipeline run

@@ -181,6 +181,7 @@ def build_image(
     problem_id: str,
     no_cache: bool = False,
 ) -> bool:
+    import time
     cmd = [
         "docker",
         "build",
@@ -196,11 +197,11 @@ def build_image(
         f"GOLDEN_BRANCH={golden_branch}",
         "--build-arg",
         f"HINTS={hints}",
+        "--build-arg",
+        f"CACHE_BUST={int(time.time()) if no_cache else 1}",
         "--add-host=host.docker.internal:172.17.0.1",
         context_dir,
     ]
-    if no_cache:
-        cmd.insert(2, "--no-cache")
     logger.info(
         f"Building image {image} (BASELINE_BRANCH={baseline_branch}, TEST_BRANCH={test_branch}, GOLDEN_BRANCH={golden_branch}, HINTS={hints}, PROBLEM_ID={problem_id})"
     )

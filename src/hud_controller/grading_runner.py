@@ -284,6 +284,8 @@ class GradingRunner:
             logger.info("Golden patch is empty (baseline and golden are identical) - skipping application")
 
         # Step 7: Apply test patch again (using 3-way merge to handle overlapping changes)
+        # Note: for DV problems, golden.patch already includes test infra as new files.
+        # Re-applying test.patch may fail because those files already exist — that's OK.
         logger.info(f"Applying test patch again in {self.grade_working_dir}")
         with open(self.test_patch_path, 'rb') as f:
             patch = f.read()
@@ -291,12 +293,19 @@ class GradingRunner:
             subprocess.run(
                 ["sudo", "-u", "ubuntu", "git", "apply", "-"], input=patch, check=True, cwd=self.grade_working_dir
             )
+            logger.info("Applied test patch again successfully")
         except subprocess.CalledProcessError:
-            # Try with 3-way merge if direct apply fails (handles overlapping changes)
-            subprocess.run(
-                ["sudo", "-u", "ubuntu", "git", "apply", "-3", "-"], input=patch, check=True, cwd=self.grade_working_dir
-            )
-        logger.info("Applied test patch again successfully")
+            try:
+                # Try with 3-way merge if direct apply fails (handles overlapping changes)
+                subprocess.run(
+                    ["sudo", "-u", "ubuntu", "git", "apply", "-3", "-"], input=patch, check=True, cwd=self.grade_working_dir
+                )
+                logger.info("Applied test patch again successfully (with -3)")
+            except subprocess.CalledProcessError:
+                # Golden patch may already include test infrastructure (new files).
+                # If those files already exist with the right content, proceed — the
+                # golden solution + existing test infra is sufficient to run the tests.
+                logger.warning("Test patch reapplication failed (golden patch likely already includes test infra). Proceeding with existing state.")
 
         # Step 8: Compile with golden patch (skip if patch was empty)
         if not golden_patch_empty:

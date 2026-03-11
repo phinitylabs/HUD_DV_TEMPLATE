@@ -11,6 +11,7 @@ This script:
 
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -18,6 +19,12 @@ import uuid
 from pathlib import Path
 
 from .utils import merge_junits
+
+
+def _parse_dv_score(stdout: str) -> float | None:
+    """Parse 'TOTAL: XX.X%' from DV grader pytest stdout."""
+    m = re.search(r'TOTAL:\s*([\d.]+)%', stdout)
+    return float(m.group(1)) / 100.0 if m else None
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +90,9 @@ class GradingRunner:
 
         # make a single junit xml file with the test results
         if result.returncode != 0:
-            return False, {"junit": self._format_junit_xml("Tests", "Tests failed", result.stdout, result.stderr)}
+            return False, {"junit": self._format_junit_xml("Tests", "Tests failed", result.stdout, result.stderr), "stdout_full": result.stdout}
         else:
-            return True, {"junit": self._format_junit_xml("Tests", None, result.stdout, result.stderr)}
+            return True, {"junit": self._format_junit_xml("Tests", None, result.stdout, result.stderr), "stdout_full": result.stdout}
 
 
     def _get_build_command(self) -> list[str]:
@@ -168,6 +175,9 @@ class GradingRunner:
 
         # Step 4: Run tests
         result, data = self.run_tests()
+        # Parse proportional DV score if available (TOTAL: XX.X% in pytest stdout)
+        dv_score = _parse_dv_score(data.get("stdout_full", ""))
+        data["dv_score"] = dv_score  # None if not a DV problem
         data["agent_patch"] = patch
         return result, data
 

@@ -229,8 +229,10 @@ async def grade_problem(
     else:
         logger.error("Grading failed!")
 
+    dv_score = result.get("dv_score")
+    test_score = dv_score if dv_score is not None else (1.0 if success else 0.0)
     grade = Grade(
-        subscores={"Tests": 1.0 if success else 0.0},
+        subscores={"Tests": test_score},
         weights={"Tests": 1.0},
         metadata=result,
     )

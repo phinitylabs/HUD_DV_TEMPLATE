@@ -94,7 +94,7 @@ RUN git config --global user.name "mr agent"
 # =================================================================
 
 
-ARG CACHE_BUST=random64_20260311_v7
+ARG CACHE_BUST=random64_20260311_v8
 ENV random64=$CACHE_BUST
 RUN git clone https://github.com/phinitylabs/AXI4_DV_ENV.git /home/ubuntu/example-verilog-codebase
 
